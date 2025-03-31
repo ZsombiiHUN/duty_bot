@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DutySession {
+  id           Int       @id @default(autoincrement())
+  userId       String
+  startTime    DateTime  @default(now())
+  endTime      DateTime?
+  guildId      String
+  alarmSent    Boolean   @default(false)
+  reminderSent Boolean   @default(false)
+
+  @@index([userId, guildId])
+}
+
+model GuildSettings {
+  id                     Int     @id @default(autoincrement())
+  guildId                String  @unique
+  dutyRoleId             String?
+  alarmEnabled           Boolean @default(false)
+  alarmThresholdHours    Int     @default(3)
+  alarmChannelId         String?
+  reminderEnabled        Boolean @default(false)
+  reminderThresholdHours Int     @default(2)
+  onDutyRoleId           String?
+  requiredHoursMonthly   Float   @default(0)
+  requiredHoursWeekly    Float   @default(0)
+  requirementsChannelId  String?
+  requirementsEnabled    Boolean @default(false)
+  dutyLogChannelId       String?
+  dutyNotificationsChannelId String?
+}
+
+model Shift {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  title     String
+  startTime DateTime
+  endTime   DateTime
+  maxUsers  Int      @default(1)
+  createdBy String
+  signups   Signup[]
+}
+
+model Signup {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  shiftId   Int
+  createdAt DateTime @default(now())
+  shift     Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shiftId])
+}
