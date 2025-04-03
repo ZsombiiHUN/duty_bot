@@ -165,6 +165,41 @@ export const data = new SlashCommandBuilder()
           .setDescription('Csatorna az értesítések küldéséhez')
           .setRequired(true)
       )
+  )
+  .addSubcommand(subcommand => 
+    subcommand
+      .setName('export')
+      .setDescription('Szolgálati idők exportálása és opcionális törlése')
+      .addStringOption(option => 
+        option
+          .setName('timeframe')
+          .setDescription('Időkeret')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Napi', value: 'daily' },
+            { name: 'Heti', value: 'weekly' },
+            { name: 'Havi', value: 'monthly' },
+            { name: 'Egyéni', value: 'custom' }
+          )
+      )
+      .addStringOption(option => 
+        option
+          .setName('start_date')
+          .setDescription('Kezdő dátum (YYYY-MM-DD) - csak egyéni időkerethez')
+          .setRequired(false)
+      )
+      .addStringOption(option => 
+        option
+          .setName('end_date')
+          .setDescription('Záró dátum (YYYY-MM-DD) - csak egyéni időkerethez')
+          .setRequired(false)
+      )
+      .addBooleanOption(option => 
+        option
+          .setName('delete')
+          .setDescription('Exportált adatok törlése az adatbázisból')
+          .setRequired(false)
+      )
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -684,6 +719,228 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       embeds: [embed]
     });
   }
+  else if (subcommand === 'export') {
+    const timeframe = interaction.options.getString('timeframe')!;
+    const startDateStr = interaction.options.getString('start_date');
+    const endDateStr = interaction.options.getString('end_date');
+    const deleteOption = interaction.options.getBoolean('delete') || false;
+    
+    // Determine start and end dates based on timeframe
+    let startDate: Date = new Date();
+    let endDate: Date = new Date();
+    let timeframeLabel: string;
+    
+    if (timeframe === 'daily') {
+      // Set to start of today
+      startDate.setHours(0, 0, 0, 0);
+      // Set to end of today
+      endDate.setHours(23, 59, 59, 999);
+      timeframeLabel = 'Napi';
+    } else if (timeframe === 'weekly') {
+      // Set to start of this week (Monday)
+      const day = startDate.getDay();
+      const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      startDate = new Date(startDate.setDate(diff));
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Set to end of this week (Sunday)
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+      timeframeLabel = 'Heti';
+    } else if (timeframe === 'monthly') {
+      // Set to start of this month
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Set to end of this month
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
+      timeframeLabel = 'Havi';
+    } else {
+      // Custom timeframe
+      if (!startDateStr || !endDateStr) {
+        return interaction.reply({
+          content: 'Egyéni időkerethez a kezdő és záró dátum megadása kötelező!',
+          ephemeral: true
+        });
+      }
+      
+      try {
+        startDate = parseDate(startDateStr);
+        startDate.setHours(0, 0, 0, 0);
+      } catch (error) {
+        return interaction.reply({
+          content: 'Érvénytelen kezdő dátum formátum. Használd a YYYY-MM-DD formátumot.',
+          ephemeral: true
+        });
+      }
+      
+      try {
+        endDate = parseDate(endDateStr);
+        endDate.setHours(23, 59, 59, 999);
+      } catch (error) {
+        return interaction.reply({
+          content: 'Érvénytelen záró dátum formátum. Használd a YYYY-MM-DD formátumot.',
+          ephemeral: true
+        });
+      }
+      
+      timeframeLabel = 'Egyéni';
+    }
+    
+    await interaction.deferReply();
+    
+    // Find sessions
+    const sessions = await prisma.dutySession.findMany({
+      where: {
+        guildId,
+        startTime: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      orderBy: {
+        userId: 'asc',
+        startTime: 'asc'
+      }
+    });
+    
+    if (sessions.length === 0) {
+      return interaction.editReply({
+        content: 'Nem található szolgálati időszak a megadott időkeretben.'
+      });
+    }
+    
+    // Group sessions by user
+    const userSessions: Record<string, {
+      totalMs: number,
+      sessionCount: number,
+      sessions: typeof sessions
+    }> = {};
+    
+    for (const session of sessions) {
+      if (!userSessions[session.userId]) {
+        userSessions[session.userId] = {
+          totalMs: 0,
+          sessionCount: 0,
+          sessions: []
+        };
+      }
+      
+      userSessions[session.userId].sessions.push(session);
+      userSessions[session.userId].sessionCount++;
+      
+      if (session.endTime) {
+        const durationMs = session.endTime.getTime() - session.startTime.getTime();
+        userSessions[session.userId].totalMs += durationMs;
+      }
+    }
+    
+    // Format the data
+    let userTableRows: string[] = [];
+    let sessionDetails: string[] = [];
+    
+    for (const userId in userSessions) {
+      try {
+        const member = await interaction.guild?.members.fetch(userId);
+        const username = member?.displayName || userId;
+        const { totalMs, sessionCount } = userSessions[userId];
+        
+        // Format hours with 2 decimal places
+        const hours = (totalMs / (1000 * 60 * 60)).toFixed(2);
+        
+        userTableRows.push(`${username} | ${hours} óra | ${sessionCount} időszak`);
+        
+        // Add session details
+        sessionDetails.push(`\n**${username} részletes időszakai:**`);
+        userSessions[userId].sessions.forEach(session => {
+          const startTime = formatDateTime(session.startTime);
+          const endTime = session.endTime ? formatDateTime(session.endTime) : 'Aktív';
+          let duration = '-';
+          
+          if (session.endTime) {
+            const durationMs = session.endTime.getTime() - session.startTime.getTime();
+            const durationHours = (durationMs / (1000 * 60 * 60)).toFixed(2);
+            duration = `${durationHours} óra`;
+          }
+          
+          sessionDetails.push(`ID: ${session.id} | ${startTime} - ${endTime} | ${duration}`);
+        });
+      } catch (error) {
+        console.error(`Couldn't fetch user ${userId}:`, error);
+        continue;
+      }
+    }
+    
+    // Create the embeds
+    const summaryEmbed = new EmbedBuilder()
+      .setColor(0x0099FF)
+      .setTitle(`${timeframeLabel} Szolgálati Idő Exportálás`)
+      .setDescription(`**Időkeret:** ${formatDate(startDate)} - ${formatDate(endDate)}`)
+      .addFields({ name: 'Összesítés', value: userTableRows.join('\n') || 'Nincs adat' })
+      .setFooter({ text: deleteOption ? 'Az adatok exportálás után törlésre kerülnek' : 'Az adatok megmaradnak az adatbázisban' })
+      .setTimestamp();
+    
+    // Split session details into chunks if needed (Discord has a limit on embed field values)
+    const maxChunkSize = 1024; // Discord's limit for field values
+    const detailChunks: string[] = [];
+    let currentChunk = '';
+    
+    for (const detail of sessionDetails) {
+      // If adding this detail would exceed the limit, push current chunk and start a new one
+      if (currentChunk.length + detail.length + 1 > maxChunkSize) {
+        detailChunks.push(currentChunk);
+        currentChunk = detail;
+      } else {
+        currentChunk += (currentChunk ? '\n' : '') + detail;
+      }
+    }
+    
+    // Push the last chunk
+    if (currentChunk) {
+      detailChunks.push(currentChunk);
+    }
+    
+    // Create detail embed(s)
+    const detailEmbeds = detailChunks.map((chunk, index) => {
+      return new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle(`Részletes Adatok (${index + 1}/${detailChunks.length})`)
+        .setDescription(chunk)
+        .setTimestamp();
+    });
+    
+    // Send the embeds
+    await interaction.editReply({
+      embeds: [summaryEmbed]
+    });
+    
+    // Send detail embeds as follow-ups
+    for (const embed of detailEmbeds) {
+      await interaction.followUp({
+        embeds: [embed]
+      });
+    }
+    
+    // Delete the sessions if requested
+    if (deleteOption) {
+      const deletedCount = await prisma.dutySession.deleteMany({
+        where: {
+          guildId,
+          startTime: {
+            gte: startDate,
+            lte: endDate
+          }
+        }
+      });
+      
+      await interaction.followUp({
+        content: `${deletedCount.count} szolgálati időszak törölve az adatbázisból.`,
+        ephemeral: true
+      });
+    }
+  }
 }
 
 // Helper functions
@@ -716,4 +973,26 @@ function formatDateTime(date: Date): string {
 
 function padZero(num: number): string {
   return num < 10 ? `0${num}` : num.toString();
+}
+
+function parseDate(dateStr: string): Date {
+  // Validate format (YYYY-MM-DD)
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateStr)) {
+    throw new Error('Invalid date format');
+  }
+  
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date');
+  }
+  
+  return date;
+}
+
+function formatDate(date: Date): string {
+  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}`;
 }
