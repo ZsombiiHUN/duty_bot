@@ -800,10 +800,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           lte: endDate
         }
       },
-      orderBy: {
-        userId: 'asc',
-        startTime: 'asc'
-      }
+      orderBy: [
+        { userId: 'asc' },
+        { startTime: 'asc' }
+      ]
     });
     
     if (sessions.length === 0) {
