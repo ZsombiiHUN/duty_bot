@@ -449,8 +449,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   else if (subcommand === 'role') {
-    const role = interaction.options.getRole('status_role') as Role;
+    const role = interaction.options.getRole('duty_role') as Role;
     
+    if (!role) {
+      return interaction.reply({
+        content: 'Érvénytelen role. Kérlek, válassz egy role-t.',
+        ephemeral: true
+      });
+    }
+
     // Update settings
     await prisma.guildSettings.update({
       where: { guildId },
