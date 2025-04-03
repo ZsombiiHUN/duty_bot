@@ -19,6 +19,19 @@ const client = new Client({
 // Create a collection for commands
 client.commands = new Collection();
 
+// Parse allowed server IDs from environment variable
+const allowServerIds = process.env.ALLOWED_SERVER_IDS || '*';
+const allowAllServers = allowServerIds === '*';
+const allowedServerIdsSet = new Set(
+  allowServerIds !== '*' ? allowServerIds.split(',').map(id => id.trim()) : []
+);
+
+// Check for required DUTY_ROLE_ID
+if (!process.env.DUTY_ROLE_ID) {
+  console.error('[ERROR] DUTY_ROLE_ID environment variable is not set. Please set it in your .env file.');
+  process.exit(1);
+}
+
 // Load command files
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') || file.endsWith('.js'));
@@ -45,6 +58,18 @@ client.once(Events.ClientReady, () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  // Check if the interaction is from an allowed server
+  const guildId = interaction.guildId;
+  if (guildId && !allowAllServers && !allowedServerIdsSet.has(guildId)) {
+    if (interaction.isRepliable()) {
+      await interaction.reply({
+        content: 'Ez a bot nem engedélyezett ezen a szerveren.',
+        ephemeral: true
+      });
+    }
+    return;
+  }
+
   // Handle button interactions
   if (interaction.isButton()) {
     try {

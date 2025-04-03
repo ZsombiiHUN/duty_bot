@@ -9,13 +9,12 @@ import {
 } from 'discord.js';
 
 
-const DUTY_ROLE_ID = '1181694226761789592';
+const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!;
 
 export const data = new SlashCommandBuilder()
   .setName('duty')
   .setDescription('Szolgálat')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .setDMPermission(false);
 
 export async function execute(interaction: CommandInteraction) {
   const member = interaction.guild?.members.cache.get(interaction.user.id);

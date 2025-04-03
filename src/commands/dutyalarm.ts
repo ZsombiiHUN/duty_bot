@@ -7,7 +7,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const DUTY_ROLE_ID = '1181694226761789592';
+const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!;
 
 // In-memory cache is now deprecated since we're using database flags
 // const alarmSentForUsers = new Set<string>();

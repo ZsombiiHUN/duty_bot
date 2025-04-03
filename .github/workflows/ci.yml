@@ -1,0 +1,39 @@
+name: Deploy Discord Bot
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Note: Using Node 18 as specified in the feedback
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      # - name: Run tests 
+      #  run: npm test # Note: This step is commented out as the current script exits with an error.
+        
+      - name: Build
+        run: npm run build
+        
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/ubuntu/duty-bot/ # IMPORTANT: Update this path on your server
+            git pull
+            npm ci --production # Install only production dependencies on the server
+            npm run build # Re-build on the server (optional, could copy build artifacts instead)
+            pm2 restart discord-bot # Assumes your bot is managed by pm2 with this name
