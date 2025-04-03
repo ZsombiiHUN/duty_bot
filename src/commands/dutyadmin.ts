@@ -462,7 +462,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await prisma.guildSettings.update({
       where: { guildId },
       data: {
-        onDutyRoleId: role.id
+        dutyRoleId: role.id
       }
     });
     
@@ -470,11 +470,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setColor(0x0099FF)
-      .setTitle('Aktív szolgálati szerep beállítva')
+      .setTitle('Szolgálati jogosultság szerep beállítva')
       .setDescription(
-        `Az aktív szolgálati szerep beállítva: <@&${role.id}>\n\n` +
-        `Ezt a szerepet automatikusan megkapják a szolgálatban lévő tagok, ` +
-        `és automatikusan elveszítik, amikor befejezik a szolgálatot.`
+        `A szolgálati jogosultság szerep beállítva: <@&${role.id}>\n\n` +
+        `Ezt a szerepet birtokló felhasználók indíthatnak és kezelhetnek szolgálati időket.`
       )
       .setTimestamp();
     
