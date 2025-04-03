@@ -18,6 +18,15 @@ jobs:
           
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run Security Audit
+        run: npm audit --audit-level=moderate
+
+      # - name: Run Linter (Requires setup)
+      #   run: npm run lint # Add a lint script to package.json and configure ESLint/etc.
         
       # - name: Run tests 
       #  run: npm test # Note: This step is commented out as the current script exits with an error.
@@ -36,5 +45,7 @@ jobs:
             cd /home/ubuntu/duty-bot/ # IMPORTANT: Update this path on your server
             git pull
             npm ci --production # Install only production dependencies on the server
+            npx prisma migrate deploy # Apply database migrations
             npm run build # Re-build on the server (optional, could copy build artifacts instead)
             sudo pm2 restart duty_bot # Assumes your bot is managed by pm2 with this name
+            sudo pm2 status duty_bot
