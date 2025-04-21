@@ -7,10 +7,14 @@ import {
   ButtonStyle,
   PermissionFlagsBits,
   ComponentType
+  // ButtonInteraction removed as it's unused
 } from 'discord.js';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client'; // Removed local instance import
+import prisma from '../db'; // Import shared Prisma client
+import { handleSignup as handleSignupButton, handleCancel as handleCancelButton } from '../components/dutyshiftButtons'; // Import handlers
+import { formatDateTime } from '../utils/dateTimeUtils'; // Import shared date formatter
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient(); // Removed local instance creation
 
 export const data = new SlashCommandBuilder()
   .setName('dutyshift')
@@ -352,26 +356,86 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }
       
       if (i.customId === `dutyshift_signup_${shift.id}`) {
-        // Handle signup
-        await handleSignup(i, shift.id);
+        // Handle signup using imported handler
+        await handleSignupButton(i, shift.id); 
       } else if (i.customId === `dutyshift_cancel_${shift.id}`) {
-        // Handle cancel
-        await handleCancel(i, shift.id);
+        // Handle cancel using imported handler
+        await handleCancelButton(i, shift.id);
       }
       
       // Refresh the view after action
       collector.stop();
     });
   }
-  else if (subcommand === 'signup') {
-    const shiftId = interaction.options.getInteger('shift_id')!;
-    await handleSignup(interaction, shiftId);
-  }
-  else if (subcommand === 'cancel') {
-    const shiftId = interaction.options.getInteger('shift_id')!;
-    await handleCancel(interaction, shiftId);
-  }
+  // Removed redundant signup/cancel blocks here, they are handled below
   else if (subcommand === 'delete') {
+    // Check if user has admin permissions
+    const member = interaction.guild?.members.cache.get(userId);
+    if (!member?.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({
+        content: 'Csak adminisztrátorok törölhetnek beosztásokat!',
+        ephemeral: true
+      });
+    }
+    
+    const shiftId = interaction.options.getInteger('shift_id')!;
+    const confirm = interaction.options.getBoolean('confirm')!;
+    
+    if (!confirm) {
+      return interaction.reply({
+        content: 'A törlés megszakítva. A törléshez erősítsd meg a műveletet.',
+        ephemeral: true
+      });
+    }
+    
+    // Find shift
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId },
+      include: { signups: true }
+    });
+    
+    if (!shift) {
+      return interaction.reply({
+        content: `Nem található beosztás ezzel az azonosítóval: ${shiftId}`,
+        ephemeral: true
+      });
+    }
+    
+    if (shift.guildId !== guildId) {
+      return interaction.reply({
+        content: 'Ezt a beosztást nem módosíthatod, mert másik szerveren jött létre.',
+        ephemeral: true
+      });
+    }
+    
+    // Delete shift (cascades to signups)
+    await prisma.shift.delete({
+      where: { id: shiftId }
+    });
+    
+    const embed = new EmbedBuilder()
+      .setColor(0xFF0000)
+      .setTitle('Szolgálati beosztás törölve')
+      .setDescription(
+        `A ${shiftId} azonosítójú szolgálati beosztás sikeresen törölve lett.\n` +
+        `Cím: ${shift.title}\n` +
+        `Időpont: ${formatDateTime(shift.startTime)} - ${formatDateTime(shift.endTime)}\n` +
+        `Jelentkezők száma: ${shift.signups.length}`
+      )
+      .setTimestamp();
+    
+    await interaction.reply({
+      embeds: [embed]
+    });
+  } else if (subcommand === 'signup') {
+    const shiftId = interaction.options.getInteger('shift_id')!;
+    // Use imported handler
+    await handleSignupButton(interaction, shiftId); 
+  } else if (subcommand === 'cancel') {
+    const shiftId = interaction.options.getInteger('shift_id')!;
+    // Use imported handler
+    await handleCancelButton(interaction, shiftId);
+  } else if (subcommand === 'delete') {
     // Check if user has admin permissions
     const member = interaction.guild?.members.cache.get(userId);
     if (!member?.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -433,161 +497,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-async function handleSignup(interaction: ChatInputCommandInteraction | any, shiftId: number) {
-  const userId = interaction.user.id;
-  const guildId = interaction.guildId!;
-  
-  // Get the shift
-  const shift = await prisma.shift.findUnique({
-    where: { id: shiftId },
-    include: {
-      signups: true
-    }
-  });
-  
-  if (!shift) {
-    return interaction.reply({
-      content: `Nem található beosztás ezzel az azonosítóval: ${shiftId}`,
-      ephemeral: true
-    });
-  }
-  
-  if (shift.guildId !== guildId) {
-    return interaction.reply({
-      content: 'Ez a beosztás másik szerveren jött létre.',
-      ephemeral: true
-    });
-  }
-  
-  // Check if shift is in the past
-  if (shift.startTime <= new Date()) {
-    return interaction.reply({
-      content: 'Nem jelentkezhetsz elmúlt beosztásokra.',
-      ephemeral: true
-    });
-  }
-  
-  // Check if already signed up
-  const existingSignup = shift.signups.find(signup => signup.userId === userId);
-  if (existingSignup) {
-    return interaction.reply({
-      content: 'Már jelentkeztél erre a beosztásra.',
-      ephemeral: true
-    });
-  }
-  
-  // Check if shift is full
-  if (shift.signups.length >= shift.maxUsers) {
-    return interaction.reply({
-      content: 'Ez a beosztás már megtelt.',
-      ephemeral: true
-    });
-  }
-  
-  // Create signup
-  await prisma.signup.create({
-    data: {
-      userId,
-      shiftId
-    }
-  });
-  
-  // Get updated shift
-  const updatedShift = await prisma.shift.findUnique({
-    where: { id: shiftId },
-    include: { signups: true }
-  });
-  
-  const embed = new EmbedBuilder()
-    .setColor(0x00FF00)
-    .setTitle('Sikeres jelentkezés')
-    .setDescription(
-      `Sikeresen jelentkeztél a következő beosztásra:\n\n` +
-      `**${shift.title}**\n` +
-      `Időpont: ${formatDateTime(shift.startTime)} - ${formatDateTime(shift.endTime)}\n` +
-      `Létszám: ${updatedShift?.signups.length || 0}/${shift.maxUsers}`
-    )
-    .setTimestamp();
-  
-  await interaction.reply({
-    embeds: [embed],
-    ephemeral: true
-  });
-}
+/* Functions moved to src/components/dutyshiftButtons.ts
 
-async function handleCancel(interaction: ChatInputCommandInteraction | any, shiftId: number) {
-  const userId = interaction.user.id;
-  const guildId = interaction.guildId!;
-  
-  // Get the shift
-  const shift = await prisma.shift.findUnique({
-    where: { id: shiftId }
-  });
-  
-  if (!shift) {
-    return interaction.reply({
-      content: `Nem található beosztás ezzel az azonosítóval: ${shiftId}`,
-      ephemeral: true
-    });
-  }
-  
-  if (shift.guildId !== guildId) {
-    return interaction.reply({
-      content: 'Ez a beosztás másik szerveren jött létre.',
-      ephemeral: true
-    });
-  }
-  
-  // Find and delete signup
-  const signup = await prisma.signup.findFirst({
-    where: {
-      userId,
-      shiftId
-    }
-  });
-  
-  if (!signup) {
-    return interaction.reply({
-      content: 'Nem vagy jelentkezve erre a beosztásra.',
-      ephemeral: true
-    });
-  }
-  
-  await prisma.signup.delete({
-    where: { id: signup.id }
-  });
-  
-  // Get updated shift
-  const updatedShift = await prisma.shift.findUnique({
-    where: { id: shiftId },
-    include: { signups: true }
-  });
-  
-  const embed = new EmbedBuilder()
-    .setColor(0xFF9900)
-    .setTitle('Jelentkezés visszavonva')
-    .setDescription(
-      `Sikeresen visszavontad a jelentkezésed a következő beosztásról:\n\n` +
-      `**${shift.title}**\n` +
-      `Időpont: ${formatDateTime(shift.startTime)} - ${formatDateTime(shift.endTime)}\n` +
-      `Létszám: ${updatedShift?.signups.length || 0}/${shift.maxUsers}`
-    )
-    .setTimestamp();
-  
-  await interaction.reply({
-    embeds: [embed],
-    ephemeral: true
-  });
-}
+async function handleSignup(...) { ... }
+
+async function handleCancel(...) { ... }
+
+*/
 
 // Make the functions available for import
-export { handleSignup, handleCancel };
+// export { handleSignup, handleCancel }; // Removed export
 
-// Helper functions
+// Helper functions (kept locally as they are used by execute)
+// Removed incorrect async db call from parseDateTime
 function parseDateTime(dateTimeStr: string): Date {
   // Format: YYYY-MM-DD HH:MM
   const match = dateTimeStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{1,2})$/);
-  
+
   if (!match) {
     throw new Error('Invalid date format');
   }
@@ -607,10 +533,4 @@ function parseDateTime(dateTimeStr: string): Date {
   return date;
 }
 
-function formatDateTime(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
-}
-
-function padZero(num: number): string {
-  return num < 10 ? `0${num}` : num.toString();
-} 
+// Removed local formatDateTime and padZero functions, now imported from utils

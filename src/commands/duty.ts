@@ -7,6 +7,7 @@ import {
   ButtonStyle,
   PermissionFlagsBits
 } from 'discord.js';
+import { BUTTON_ID_DUTY_ON, BUTTON_ID_DUTY_OFF, BUTTON_ID_SHOW_TIME } from '../constants'; // Import constants
 
 
 const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!;
@@ -50,17 +51,17 @@ export async function execute(interaction: CommandInteraction) {
   const row = new ActionRowBuilder<ButtonBuilder>()
     .addComponents(
       new ButtonBuilder()
-        .setCustomId('duty_on')
+        .setCustomId(BUTTON_ID_DUTY_ON) // Use constant
         .setLabel('🟢 Szolgálat kezdése')
         .setStyle(ButtonStyle.Success),
       
       new ButtonBuilder()
-        .setCustomId('duty_off')
+        .setCustomId(BUTTON_ID_DUTY_OFF) // Use constant
         .setLabel('🔴 Szolgálat befejezése')
         .setStyle(ButtonStyle.Danger),
         
       new ButtonBuilder()
-        .setCustomId('show_time')
+        .setCustomId(BUTTON_ID_SHOW_TIME) // Use constant
         .setLabel('📊 Szolgálati idő')
         .setStyle(ButtonStyle.Primary)
     );

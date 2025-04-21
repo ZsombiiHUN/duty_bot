@@ -5,8 +5,26 @@ import path from 'path';
 
 dotenv.config();
 
+// --- Environment Variable Checks ---
+const { DISCORD_TOKEN, CLIENT_ID, GUILD_ID } = process.env;
+
+if (!DISCORD_TOKEN) {
+  console.error('[ERROR] Missing DISCORD_TOKEN environment variable.');
+  process.exit(1);
+}
+if (!CLIENT_ID) {
+  console.error('[ERROR] Missing CLIENT_ID environment variable.');
+  process.exit(1);
+}
+// Validate GUILD_ID format (basic check for numeric string)
+const snowflakeRegex = /^\d+$/;
+if (!GUILD_ID || !snowflakeRegex.test(GUILD_ID)) {
+  console.error(`[ERROR] Invalid or missing GUILD_ID environment variable: "${GUILD_ID}". It must be a valid Discord Snowflake ID.`);
+  process.exit(1);
+}
+// --- End Environment Variable Checks ---
+
 const commands = [];
-const GUILD_ID = '1181693792068313108';
 
 // Load command files
 const commandsPath = path.join(__dirname, 'commands');
@@ -24,20 +42,22 @@ for (const file of commandFiles) {
   }
 }
 
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN!);
+const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log(`Started refreshing ${commands.length} application (/) commands.`);
+    console.log(`Started refreshing ${commands.length} application (/) commands for guild ${GUILD_ID}.`);
 
     // Deploy to specific guild for immediate testing
     await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID!, GUILD_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
 
-    console.log('Successfully reloaded application (/) commands.');
+    console.log(`Successfully reloaded ${commands.length} application (/) commands for guild ${GUILD_ID}.`);
   } catch (error) {
-    console.error(error);
+    console.error(`Error refreshing application (/) commands for guild ${GUILD_ID}:`, error);
+    // Exit with error code to indicate failure
+    process.exit(1); 
   }
 })();

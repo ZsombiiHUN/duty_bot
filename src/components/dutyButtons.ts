@@ -3,9 +3,12 @@ import {
   EmbedBuilder,
   GuildMember
 } from 'discord.js';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client'; // Removed local instance import
+import prisma from '../db'; // Import shared Prisma client
+import { formatDateTime } from '../utils/dateTimeUtils'; // Import shared date formatter
+import logger from '../utils/logger'; // Import the logger
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient(); // Removed local instance creation
 
 export async function handleDutyOn(interaction: ButtonInteraction) {
   const userId = interaction.user.id;
@@ -26,12 +29,13 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
       .setTitle('❌ Már szolgálatban vagy!')
       .setDescription('Nem kezdhetsz új szolgálatot, amíg a jelenlegi aktív.')
       .setFooter({ text: 'Használd a "Szolgálat befejezése" gombot a jelenlegi szolgálat lezárásához.' })
-      .setTimestamp();
+       .setTimestamp();
 
-    return interaction.reply({
+    await interaction.reply({
       embeds: [errorEmbed],
       ephemeral: true
     });
+    return;
   }
 
   // Get guild settings
@@ -52,10 +56,11 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
         .setFooter({ text: 'Kérj segítséget egy adminisztrátortól.' })
         .setTimestamp();
 
-      return interaction.reply({
+      await interaction.reply({
         embeds: [noPermissionEmbed],
         ephemeral: true
       });
+      return;
     }
   }
 
@@ -77,20 +82,20 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
       const guild = interaction.guild;
 
       if (!guild) {
-        console.error('Guild not found for role assignment');
+        logger.error('Guild not found for role assignment', { guildId, userId });
         roleStatus = '\n⚠️ Nem sikerült a szolgálati rang hozzáadása: guild not found';
       } else {
         // Log the onDutyRoleId for debugging
-        console.log(`Attempting to add role with ID: ${onDutyRoleId} to user: ${userId}`);
+        logger.info(`Attempting to add role with ID: ${onDutyRoleId} to user: ${userId} in guild: ${guildId}`);
 
         // Fetch the role first to verify it exists
         const role = await guild.roles.fetch(onDutyRoleId).catch(err => {
-          console.error(`Error fetching role: ${err.message}`);
+          logger.error(`Error fetching role ${onDutyRoleId} in guild ${guildId}:`, { error: err });
           return null;
         });
 
         if (!role) {
-          console.error(`Role with ID ${onDutyRoleId} does not exist in guild ${guildId}`);
+          logger.error(`Role with ID ${onDutyRoleId} does not exist in guild ${guildId}`);
           roleStatus = `\n⚠️ Nem sikerült a szolgálati rang hozzáadása: a szerep nem létezik`;
         } else {
           // Check if bot has permission to add the role
@@ -98,22 +103,22 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
           const botRole = botMember.roles.highest;
                     
           if (role.position >= botRole.position) {
-            console.error(`Bot cannot add role ${role.name} as it is positioned higher than bot's highest role`);
+            logger.error(`Bot cannot add role ${role.name} (${role.id}) as it is positioned higher than bot's highest role ${botRole.name} (${botRole.id})`, { guildId, userId });
             roleStatus = `\n⚠️ Nem sikerült a szolgálati rang hozzáadása: a bot szerepe alacsonyabb, mint a hozzáadni kívánt szerep`;
           } else {
             // Now add the role
             await member.roles.add(role);
-            console.log(`Successfully added role ${role.name} to user ${userId}`);
+            logger.info(`Successfully added role ${role.name} (${role.id}) to user ${userId}`, { guildId });
             roleStatus = `\n✅ Szolgálati rang hozzáadva: <@&${onDutyRoleId}> (${role.name})`;
           }
         }
       }
     } catch (error) {
-      console.error('Error adding duty role:', error);
+      logger.error('Error adding duty role:', { error, userId, guildId, onDutyRoleId });
       roleStatus = `\n⚠️ Nem sikerült a szolgálati rang hozzáadása: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`;
     }
   } else {
-    console.log('No onDutyRoleId configured for guild:', guildId);
+    logger.info(`No onDutyRoleId configured for guild: ${guildId}`);
   }
 
   const startTime = newSession.startTime;
@@ -153,11 +158,11 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
         });
       } else {
         // Fall back to replying directly if channel is not text-based
-        console.error(`Channel with ID ${notificationChannelId} is not a text channel`);
+        logger.error(`Channel with ID ${notificationChannelId} is not a text channel`, { guildId });
         await interaction.reply({ embeds: [embed] });
       }
     } catch (error) {
-      console.error(`Error sending to notification channel: ${error instanceof Error ? error.message : 'unknown error'}`);
+      logger.error(`Error sending to notification channel ${notificationChannelId}:`, { error, guildId });
       await interaction.reply({ embeds: [embed] });
     }
   } else {
@@ -185,12 +190,13 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
       .setTitle('❌ Nem vagy szolgálatban!')
       .setDescription('Nem fejezhetsz be egy nem létező szolgálatot.')
       .setFooter({ text: 'Használd a "Szolgálat kezdése" gombot az új szolgálat indításához.' })
-      .setTimestamp();
+       .setTimestamp();
 
-    return interaction.reply({
+    await interaction.reply({
       embeds: [errorEmbed],
       ephemeral: true
     });
+    return;
   }
 
   // Get the most recent active session
@@ -230,20 +236,20 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
       const guild = interaction.guild;
 
       if (!guild) {
-        console.error('Guild not found for role removal');
+        logger.error('Guild not found for role removal', { guildId, userId });
         roleStatus = '\n⚠️ Nem sikerült a szolgálati rang eltávolítása: guild not found';
       } else {
         // Log the onDutyRoleId for debugging
-        console.log(`Attempting to remove role with ID: ${onDutyRoleId} from user: ${userId}`);
+        logger.info(`Attempting to remove role with ID: ${onDutyRoleId} from user: ${userId} in guild: ${guildId}`);
 
         // Fetch the role first to verify it exists
         const role = await guild.roles.fetch(onDutyRoleId).catch(err => {
-          console.error(`Error fetching role: ${err.message}`);
+          logger.error(`Error fetching role ${onDutyRoleId} in guild ${guildId}:`, { error: err });
           return null;
         });
 
         if (!role) {
-          console.error(`Role with ID ${onDutyRoleId} does not exist in guild ${guildId}`);
+          logger.error(`Role with ID ${onDutyRoleId} does not exist in guild ${guildId}`);
           roleStatus = `\n⚠️ Nem sikerült a szolgálati rang eltávolítása: a szerep nem létezik`;
         } else {
           // Check if bot has permission to remove the role
@@ -251,22 +257,22 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
           const botRole = botMember.roles.highest;
                     
           if (role.position >= botRole.position) {
-            console.error(`Bot cannot remove role ${role.name} as it is positioned higher than bot's highest role`);
+            logger.error(`Bot cannot remove role ${role.name} (${role.id}) as it is positioned higher than bot's highest role ${botRole.name} (${botRole.id})`, { guildId, userId });
             roleStatus = `\n⚠️ Nem sikerült a szolgálati rang eltávolítása: a bot szerepe alacsonyabb, mint az eltávolítani kívánt szerep`;
           } else {
             // Now remove the role
             await member.roles.remove(role);
-            console.log(`Successfully removed role ${role.name} from user ${userId}`);
+            logger.info(`Successfully removed role ${role.name} (${role.id}) from user ${userId}`, { guildId });
             roleStatus = `\n✅ Szolgálati rang eltávolítva: <@&${onDutyRoleId}> (${role.name})`;
           }
         }
       }
     } catch (error) {
-      console.error('Error removing duty role:', error);
+      logger.error('Error removing duty role:', { error, userId, guildId, onDutyRoleId });
       roleStatus = `\n⚠️ Nem sikerült a szolgálati rang eltávolítása: ${error instanceof Error ? error.message : 'ismeretlen hiba'}`;
     }
   } else {
-    console.log('No onDutyRoleId configured for guild:', guildId);
+    logger.info(`No onDutyRoleId configured for guild: ${guildId}`);
   }
 
   const formattedStartTime = formatDateTime(startTime);
@@ -320,11 +326,11 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
         });
       } else {
         // Fall back to replying directly if channel is not text-based
-        console.error(`Channel with ID ${notificationChannelId} is not a text channel`);
+        logger.error(`Channel with ID ${notificationChannelId} is not a text channel`, { guildId });
         await interaction.reply({ embeds: [embed] });
       }
     } catch (error) {
-      console.error(`Error sending to notification channel: ${error instanceof Error ? error.message : 'unknown error'}`);
+      logger.error(`Error sending to notification channel ${notificationChannelId}:`, { error, guildId });
       await interaction.reply({ embeds: [embed] });
     }
   } else {
@@ -429,7 +435,7 @@ export async function handleShowTime(interaction: ButtonInteraction) {
         }
       }
     } catch (error) {
-      console.error(`Error fetching onDutyRole: ${error}`);
+      logger.error(`Error fetching onDutyRole ${onDutyRoleId}:`, { error, guildId });
       rankInfo = `\n👑 Szolgálati rang: Beállítva, de hiba történt az információ lekérésekor`;
     }
   } else {
@@ -465,11 +471,4 @@ export async function handleShowTime(interaction: ButtonInteraction) {
   });
 }
 
-// Helper function to format dates
-function formatDateTime(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
-}
-
-function padZero(num: number): string {
-  return num < 10 ? `0${num}` : num.toString();
-}
+// Removed local formatDateTime and padZero functions, now imported from utils
