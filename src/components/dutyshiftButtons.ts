@@ -6,7 +6,6 @@ import {
 // import { PrismaClient } from '@prisma/client'; // Removed local instance import
 import prisma from '../db'; // Import shared Prisma client
 import { formatDateTime } from '../utils/dateTimeUtils'; // Import shared date formatter
-import logger from '../utils/logger'; // Import the logger
 
 // const prisma = new PrismaClient(); // Removed local instance creation
 
