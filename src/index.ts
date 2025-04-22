@@ -19,6 +19,7 @@ import { checkDutyRequirements } from './tasks/requirementChecker'; // Import th
 import { startAutoReportScheduler } from './tasks/autoReportScheduler';
 import * as Constants from './constants';
 import logger from './utils/logger'; // Import the logger
+import { handleDutyRoleSelect, handleOnDutyRoleSelect, handleLogChannelSelect, handleNotificationChannelSelect, handleRequirementsChannel, handleAlarmChannel } from './commands/setup';
 
 dotenv.config();
 
@@ -227,6 +228,72 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => { // Add
     }
     // No return here, as other interaction types might follow (though unlikely if it was a button)
     // The returns within the specific handlers ensure we don't fall through.
+  }
+
+  // Handle Role Select Menu interactions for setup wizard
+  if (interaction.isRoleSelectMenu()) {
+    if (interaction.customId === 'setup_duty_role') {
+      await handleDutyRoleSelect(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_on_duty_role') {
+      await handleOnDutyRoleSelect(interaction);
+      return;
+    }
+  }
+
+  // Handle Channel Select Menu interactions for setup wizard
+  if (interaction.isChannelSelectMenu()) {
+    if (interaction.customId === 'setup_log_channel') {
+      await handleLogChannelSelect(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_notification_channel') {
+      await handleNotificationChannelSelect(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_requirements_channel') {
+      await handleRequirementsChannel(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_alarm_channel') {
+      await handleAlarmChannel(interaction);
+      return;
+    }
+  }
+
+  // Handle String Select Menu interactions for setup wizard (requirements, alarm, reminder steps)
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'setup_requirements_enable') {
+      const { handleRequirementsEnable } = await import('./commands/setup');
+      await handleRequirementsEnable(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_requirements_weekly') {
+      const { handleRequirementsWeekly } = await import('./commands/setup');
+      await handleRequirementsWeekly(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_requirements_monthly') {
+      const { handleRequirementsMonthly } = await import('./commands/setup');
+      await handleRequirementsMonthly(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_alarm_enable') {
+      const { handleAlarmEnable } = await import('./commands/setup');
+      await handleAlarmEnable(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_alarm_threshold') {
+      const { handleAlarmThreshold } = await import('./commands/setup');
+      await handleAlarmThreshold(interaction);
+      return;
+    }
+    if (interaction.customId === 'setup_reminder_threshold') {
+      const { handleReminderThreshold } = await import('./commands/setup');
+      await handleReminderThreshold(interaction);
+      return;
+    }
   }
 
   // Handle slash commands

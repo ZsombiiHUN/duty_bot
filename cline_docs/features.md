@@ -18,7 +18,7 @@
 - **edit**: Szolgálati idő szerkesztése (admin)
 - **delete**: Szolgálati idő törlése (admin)
 - **permission_role**: Jogosultsági szerep beállítása (admin)
-- **status_role**: Aktív szolgálati szerep beállítása (admin)
+- **status_role**: Aktív szolgálati szerep beállítása (admin) 
 - **requirement**: Kötelező szolgálati idő/hét beállítása (admin)
 - **notification**: E-mail/csatorna értesítések beállítása (admin)
 - **settings**: Beállítások lekérdezése (admin)

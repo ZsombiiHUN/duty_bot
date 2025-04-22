@@ -42,15 +42,55 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setDescription('Itt találod az elérhető parancsokat, alparancsaikat és a használatukhoz szükséges jogosultságokat.')
     .addFields(
       { 
-        name: '/duty', 
-        value: `Szolgálati irányítópult megjelenítése.\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`, 
+        name: '/setup', 
+        value: `Interaktív szolgálat bot beállítás varázsló.\n*Jogosultság:* ${ADMIN_PERM}`, 
         inline: false 
       },
       { 
-        name: '/dutyadmin', 
-        value: `Szolgálati idő adminisztráció.` +
+        name: '/dutyreport', 
+        value: `Automatikus szolgálati jelentések ütemezése, listázása, törlése.` +
                formatSubcommands([
-                 { name: 'add', description: 'Szolgálati idő manuális hozzáadása' },
+                 { name: 'schedule', description: 'Ütemezett automatikus jelentés' },
+                 { name: 'list', description: 'Ütemezett jelentések listázása' },
+                 { name: 'remove', description: 'Ütemezett jelentés törlése' }
+               ]) +
+               `\n*Jogosultság:* ${ADMIN_PERM}`,
+        inline: false 
+      },
+      { 
+        name: '/roster', 
+        value: `Szolgálati névsor adminisztráció.` +
+               formatSubcommands([
+                 { name: 'list', description: 'Felhasználók listázása a névsorban' },
+                 { name: 'search', description: 'Felhasználó keresése név, fedőnév vagy jelvényszám alapján' },
+                 { name: 'remove', description: 'Felhasználó regisztrációjának törlése a névsorból' }
+               ]) +
+               `\n*Jogosultság:* ${ADMIN_PERM}`,
+        inline: false 
+      },
+      { 
+        name: '/vakacio', 
+        value: `Szabadság/elfoglaltság kezelése, admin funkciók.` +
+               formatSubcommands([
+                 { name: 'hozzaad', description: 'Új szabadság vagy elfoglaltság hozzáadása' },
+                 { name: 'listaz', description: 'Saját szabadságok/elfoglaltságok listázása' },
+                 { name: 'torol', description: 'Saját szabadság/elfoglaltság törlése' },
+                 { name: 'admin-listaz', description: 'Összes szabadság/elfoglaltság listázása (admin)' },
+                 { name: 'admin-torol', description: 'Bármely szabadság/elfoglaltság törlése ID alapján (admin)' }
+               ]) +
+               `\n*Jogosultság:* ${ADMIN_PERM}`,
+        inline: false 
+      },
+      { 
+        name: '/szolgalat', 
+        value: `Szolgálat kezelése (irányítópult).\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`, 
+        inline: false 
+      },
+      { 
+        name: '/szolgadmin', 
+        value: `Adminisztrátori parancsok szolgálati idő, szerepkörök és beállítások kezeléséhez.` +
+               formatSubcommands([
+                 { name: 'add', description: 'Szolgálati idő hozzáadása felhasználónak' },
                  { name: 'edit', description: 'Szolgálati idő szerkesztése' },
                  { name: 'delete', description: 'Szolgálati idő törlése' },
                  { name: 'role', description: 'Szolgálati státusz szerep beállítása' },
@@ -59,14 +99,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
                  { name: 'requirements', description: 'Szolgálati idő követelmények beállítása' },
                  { name: 'find', description: 'Szolgálati időszakok keresése felhasználónként' },
                  { name: 'notifications_channel', description: 'Szolgálati értesítések csatornájának beállítása' },
-                 { name: 'log_channel', description: 'Szolgálati naplózási csatorna beállítása/törlése' }
+                 { name: 'log_channel', description: 'Szolgálati naplózási csatorna beállítása/törlése' },
+                 { name: 'export', description: 'Szolgálati idők exportálása CSV-be' }
                ]) +
                `\n*Jogosultság:* ${ADMIN_PERM}`,
         inline: false 
       },
       { 
-        name: '/dutyalarm', 
-        value: `Szolgálati idő figyelmeztetések beállítása.` +
+        name: '/szolgfigyelo', 
+        value: `Szolgálati figyelmeztetések és emlékeztetők beállítása adminoknak.` +
                formatSubcommands([
                  { name: 'config', description: 'Figyelmeztetés beállítása' },
                  { name: 'status', description: 'Jelenlegi figyelmeztetés beállítások' },
@@ -77,8 +118,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         inline: false 
       },
       { 
-        name: '/dutyshift', 
-        value: `Szolgálati beosztások kezelése.` +
+        name: '/beosztas', 
+        value: `Szolgálati beosztások kezelése, jelentkezés, lemondás.` +
                formatSubcommands([
                  { name: 'create', description: 'Új szolgálati beosztás létrehozása' },
                  { name: 'list', description: 'Elérhető beosztások listázása' },
@@ -87,31 +128,41 @@ export async function execute(interaction: ChatInputCommandInteraction) {
                  { name: 'cancel', description: 'Jelentkezés visszavonása' },
                  { name: 'delete', description: 'Beosztás törlése' }
                ]) +
-               `\n*Jogosultságok:*\n  - \`create\`, \`delete\`: ${ADMIN_PERM}\n  - \`list\`, \`view\`, \`signup\`, \`cancel\`: ${DUTY_ROLE_OR_ADMIN_PERM}`, 
-        inline: false 
-      },
-      { 
-        name: '/dutystats', 
-        value: `Szolgálati idő statisztikák megtekintése.` +
-               formatSubcommands([
-                { name: 'summary', description: 'Összesített szolgálati statisztikák' },
-                 { name: 'leaderboard', description: 'Toplista a legtöbb szolgálati idővel' },
-                 { name: 'metrics', description: 'Részletes szolgálati metrikák' },
-                 { name: 'compliance', description: 'Szolgálati követelményeknek való megfelelés ellenőrzése' }
-               ]) +
                `\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`,
         inline: false 
       },
       { 
-        name: '/dutyuser', 
-        value: `Személyes szolgálati információk.` +
+        name: '/szolgstat', 
+        value: `Statisztikák, toplisták, megfelelőség szolgálati időkről.` +
+               formatSubcommands([
+                 { name: 'summary', description: 'Összesített szolgálati statisztikák' },
+                 { name: 'leaderboard', description: 'Toplista a legtöbb szolgálati idővel' },
+                 { name: 'metrics', description: 'Részletes szolgálati metrikák' },
+                 { name: 'compliance', description: 'Megfelelőség ellenőrzése' }
+               ]) +
+               `\n*Jogosultság:* ${ADMIN_PERM}`,
+        inline: false 
+      },
+      { 
+        name: '/szemelyiszolgalat', 
+        value: `Személyes szolgálati adatok, export, rang, követelmények.` +
                formatSubcommands([
                  { name: 'history', description: 'Saját szolgálati előzmények' },
                  { name: 'export', description: 'Szolgálati idő exportálása CSV fájlba' },
                  { name: 'rank', description: 'Saját helyezés megtekintése a toplistán' },
                  { name: 'requirements', description: 'Elvárt szolgálati idő követelmények ellenőrzése' }
                ]) +
-               `\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`, 
+               `\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`,
+        inline: false 
+      },
+      { 
+        name: '/dutyregisztracio', 
+        value: `Szolgálati regisztráció a szükséges adatokkal.\n*Jogosultság:* ${ANYONE_PERM}`, 
+        inline: false 
+      },
+      { 
+        name: '/duty', 
+        value: `Szolgálati irányítópult megjelenítése.\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`, 
         inline: false 
       },
       { 
@@ -128,3 +179,4 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     ephemeral: true 
   });
 }
+
