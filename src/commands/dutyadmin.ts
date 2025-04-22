@@ -910,8 +910,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
     
     // Format the data
-    let userTableRows: string[] = [];
-    let sessionDetails: string[] = [];
+    const userTableRows: string[] = [];
+    const sessionDetails: string[] = [];
     
     for (const userId in userSessions) {
       try {

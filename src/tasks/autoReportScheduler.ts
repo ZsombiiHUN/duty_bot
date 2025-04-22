@@ -6,7 +6,7 @@ import { handleLeaderboard } from '../commands/dutystats';
 function getNextRunDate(timeOfDay: string, frequency: string): Date {
   const now = new Date();
   const [hour, minute] = timeOfDay.split(':').map(Number);
-  let next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
   if (next <= now) {
     if (frequency === 'daily') next.setDate(next.getDate() + 1);
     else if (frequency === 'weekly') next.setDate(next.getDate() + 7);

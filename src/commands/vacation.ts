@@ -69,7 +69,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         data: { userId, guildId, startDate, endDate, reason: indok }
       });
       await interaction.reply({ content: `Szabadság/elfoglaltság rögzítve (ID: ${created.id}, ${kezdet} - ${vege}${indok ? ', Indok: ' + indok : ''})`, ephemeral: true });
-    } catch (e) {
+    } catch {
       await interaction.reply({ content: 'Hiba történt a rögzítés során.', ephemeral: true });
     }
   } else if (subcommand === 'listaz') {

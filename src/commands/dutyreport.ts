@@ -59,7 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     // Compute nextRun (today or tomorrow at timeOfDay)
     const [hour, minute] = timeOfDay.split(':').map(Number);
     const now = new Date();
-    let nextRun = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+    const nextRun = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
     if (nextRun <= now) {
       // If time has already passed today, schedule for tomorrow
       nextRun.setDate(nextRun.getDate() + 1);

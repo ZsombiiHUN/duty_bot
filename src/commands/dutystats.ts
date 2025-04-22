@@ -203,7 +203,7 @@ export async function handleSummary(
   const userId = targetUser?.id; // Get userId from targetUser if provided
 
   // Build the query
-  let query: any = {
+  const query: any = {
     where: {
       guildId,
       startTime: {
@@ -361,11 +361,11 @@ export async function handleSummary(
   }
   // For all users
   else {
-    let totalUsers = Object.keys(userStats).length;
-    let totalSessions = completedSessions.length;
-    let totalMs = Object.values(userStats).reduce((sum, stat) => sum + stat.totalMs, 0);
-    let totalHours = Math.floor(totalMs / (1000 * 60 * 60));
-    let totalMinutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
+    const totalUsers = Object.keys(userStats).length;
+    const totalSessions = completedSessions.length;
+    const totalMs = Object.values(userStats).reduce((sum, stat) => sum + stat.totalMs, 0);
+    const totalHours = Math.floor(totalMs / (1000 * 60 * 60));
+    const totalMinutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
 
     // Active sessions
     const activeSessions = await prisma.dutySession.findMany({
