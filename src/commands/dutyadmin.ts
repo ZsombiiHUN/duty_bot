@@ -3,22 +3,28 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   PermissionFlagsBits,
-  Role
-} from 'discord.js';
-import { PrismaClient } from '@prisma/client';
+  Role} from 'discord.js';
+// import { PrismaClient } from '@prisma/client'; // Removed local instance import
+import prisma from '../db'; // Import shared Prisma client
+import { parseDateTime, formatDateTime, parseDate, formatDate } from '../utils/dateTimeUtils'; // Import shared utils
 
-const prisma = new PrismaClient();
-const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!;
+// const prisma = new PrismaClient(); // Removed local instance creation
+const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!; // Fallback for initial settings creation
 
+/**
+ * Command definition for the /szolgadmin command.
+ * Provides administrative functions for managing duty sessions, roles, and settings.
+ * Requires Administrator permissions.
+ */
 export const data = new SlashCommandBuilder()
-  .setName('dutyadmin')
-  .setDescription('Szolgálati idő adminisztráció')
+  .setName('szolgadmin')
+  .setDescription('Adminisztrátori parancsok szolgálati idő, szerepkörök és beállítások kezeléséhez.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .setDMPermission(false)
   .addSubcommand(subcommand => 
     subcommand
       .setName('add')
-      .setDescription('Szolgálati idő manuális hozzáadása')
+      .setDescription('Szolgálati idő hozzáadása felhasználónak.')
       .addUserOption(option => 
         option
           .setName('user')
@@ -41,7 +47,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('edit')
-      .setDescription('Szolgálati idő szerkesztése')
+      .setDescription('Szolgálati idő szerkesztése.')
       .addIntegerOption(option => 
         option
           .setName('session_id')
@@ -64,7 +70,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('delete')
-      .setDescription('Szolgálati idő törlése')
+      .setDescription('Szolgálati idő törlése.')
       .addIntegerOption(option => 
         option
           .setName('session_id')
@@ -78,21 +84,21 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
       )
   )
-  .addSubcommand(subcommand => 
+  .addSubcommand(subcommand =>
     subcommand
-      .setName('role')
-      .setDescription('Szolgálati státusz szerep beállítása')
-      .addRoleOption(option => 
+      .setName('permission_role') // Renamed from 'role'
+      .setDescription('Jogosultsági szerep beállítása.')
+      .addRoleOption(option =>
         option
           .setName('duty_role')
-          .setDescription('Admin | Lehet buggos, hasznald a status_role-t')
+          .setDescription('Szerep, amely szükséges a /duty parancsok használatához') // Updated option description
           .setRequired(true)
       )
   )
   .addSubcommand(subcommand => 
     subcommand
       .setName('status_role')
-      .setDescription('Aktív szolgálati állapot szerep beállítása')
+      .setDescription('Aktív szolgálati szerep beállítása.')
       .addRoleOption(option => 
         option
           .setName('status_role')
@@ -103,12 +109,12 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('check')
-      .setDescription('Ellenőrzi a jelenlegi szolgálati és szerep beállításokat')
+      .setDescription('Szolgálati és szerep beállítások ellenőrzése.')
   )
   .addSubcommand(subcommand => 
     subcommand
       .setName('requirements')
-      .setDescription('Szolgálati idő követelmények beállítása')
+      .setDescription('Követelmények és értesítési csatorna beállítása.')
       .addBooleanOption(option => 
         option
           .setName('enabled')
@@ -139,7 +145,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('find')
-      .setDescription('Szolgálati időszakok keresése felhasználónként')
+      .setDescription('Felhasználó szolgálati időszakainak keresése.')
       .addUserOption(option => 
         option
           .setName('user')
@@ -158,7 +164,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('notifications_channel')
-      .setDescription('Szolgálati értesítések csatornájának beállítása')
+      .setDescription('Értesítési csatorna beállítása.')
       .addChannelOption(option => 
         option
           .setName('channel')
@@ -169,7 +175,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand => 
     subcommand
       .setName('export')
-      .setDescription('Szolgálati idők exportálása és opcionális törlése')
+      .setDescription('Szolgálati idők exportálása CSV-be.')
       .addStringOption(option => 
         option
           .setName('timeframe')
@@ -200,8 +206,26 @@ export const data = new SlashCommandBuilder()
           .setDescription('Exportált adatok törlése az adatbázisból')
           .setRequired(false)
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('log_channel')
+      .setDescription('Naplózási csatorna beállítása vagy törlése.')
+      .addChannelOption(option =>
+        option
+          .setName('channel')
+          .setDescription('Csatorna a naplóüzenetekhez (üresen hagyva törli)')
+          .setRequired(false) // Make optional to allow clearing
+      )
   );
 
+/**
+ * Executes the /szolgadmin command based on the chosen subcommand.
+ * Handles adding, editing, deleting sessions, configuring roles, requirements,
+ * notifications, checking settings, finding sessions, and exporting data.
+ * Requires Administrator permissions.
+ * @param {ChatInputCommandInteraction} interaction - The command interaction object.
+ */
 export async function execute(interaction: ChatInputCommandInteraction) {
   // Check if user has the required role or is admin
   const member = interaction.guild?.members.cache.get(interaction.user.id);
@@ -448,9 +472,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 
-  else if (subcommand === 'role') {
+  else if (subcommand === 'permission_role') { // Updated subcommand check
     const role = interaction.options.getRole('duty_role') as Role;
-    
+
     if (!role) {
       return interaction.reply({
         content: 'Érvénytelen role. Kérlek, válassz egy role-t.',
@@ -465,8 +489,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         dutyRoleId: role.id
       }
     });
-    
-    //Note: Ez ugyan az mint a Status_Role, tbd
+
+    // Removed misleading comment: //Note: Ez ugyan az mint a Status_Role, tbd
 
     const embed = new EmbedBuilder()
       .setColor(0x0099FF)
@@ -514,7 +538,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     if (!settings) {
       return interaction.reply({
-        content: '⚠️ Nem találhatóak szerver beállítások. Használd a `/dutyadmin role` és `/dutyadmin status_role` parancsokat a beállításhoz.',
+        content: '⚠️ Nem találhatóak szerver beállítások. Használd a `/szolgadmin role` és `/szolgadmin status_role` parancsokat a beállításhoz.',
         ephemeral: true
       });
     }
@@ -605,8 +629,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `### Tippek a hibák javításához:\n` +
         `- Ellenőrizd, hogy a szerepek léteznek-e a szerveren\n` +
         `- Ellenőrizd, hogy a bot szerepe magasabb pozícióban van-e, mint a kezelendő szerepek\n` +
-        `- Használd a \`/dutyadmin role\` és \`/dutyadmin status_role\` parancsokat a szerepek frissítéséhez\n` +
-        `- Használd a \`/dutyadmin notifications_channel\` parancsot az értesítési csatorna beállításához`
+        `- Használd a \`/szolgadmin role\` és \`/szolgadmin status_role\` parancsokat a szerepek frissítéséhez\n` +
+        `- Használd a \`/szolgadmin notifications_channel\` parancsot az értesítési csatorna beállításához`
       )
       .setTimestamp();
 
@@ -721,6 +745,48 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       )
       .setTimestamp();
     
+    await interaction.reply({
+      embeds: [embed]
+    });
+  }
+  else if (subcommand === 'log_channel') {
+    const channel = interaction.options.getChannel('channel'); // Can be null if clearing
+
+    let channelId: string | null = null;
+    let replyMessage: string;
+
+    if (channel) {
+      // Validate channel type (must be text-based) - Import 'ChannelType' if not already imported
+      // We need to check if the channel object *has* the isTextBased method
+      // or check its type explicitly. Checking the type is safer.
+      if (!('isTextBased' in channel) || !channel.isTextBased()) {
+         return interaction.reply({
+          content: '⚠️ Csak szöveges csatornát adhatsz meg naplózási csatornának.',
+          ephemeral: true
+        });
+      }
+      channelId = channel.id;
+      replyMessage = `✅ Szolgálati naplózási csatorna beállítva: <#${channelId}>`;
+    } else {
+      // If no channel is provided, clear the setting
+      channelId = null;
+      replyMessage = '🗑️ Szolgálati naplózási csatorna törölve.';
+    }
+
+    // Update settings
+    await prisma.guildSettings.update({
+      where: { guildId },
+      data: {
+        dutyLogChannelId: channelId
+      }
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(channelId ? 0x0099FF : 0xFFA500) // Blue for set, Orange for clear
+      .setTitle('Szolgálati naplózási csatorna')
+      .setDescription(replyMessage)
+      .setTimestamp();
+
     await interaction.reply({
       embeds: [embed]
     });
@@ -949,56 +1015,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-// Helper functions
-function parseDateTime(dateTimeStr: string): Date {
-  // Format: YYYY-MM-DD HH:MM
-  const match = dateTimeStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{1,2})$/);
-  
-  if (!match) {
-    throw new Error('Invalid date format');
-  }
-  
-  const year = parseInt(match[1]);
-  const month = parseInt(match[2]) - 1; // 0-based months
-  const day = parseInt(match[3]);
-  const hour = parseInt(match[4]);
-  const minute = parseInt(match[5]);
-  
-  const date = new Date(year, month, day, hour, minute);
-  
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date');
-  }
-  
-  return date;
-}
-
-function formatDateTime(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
-}
-
-function padZero(num: number): string {
-  return num < 10 ? `0${num}` : num.toString();
-}
-
-function parseDate(dateStr: string): Date {
-  // Validate format (YYYY-MM-DD)
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(dateStr)) {
-    throw new Error('Invalid date format');
-  }
-  
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  
-  // Check if date is valid
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date');
-  }
-  
-  return date;
-}
-
-function formatDate(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}`;
-}
+// Removed local helper functions (parseDateTime, formatDateTime, padZero, parseDate, formatDate)
+// They are now imported from ../utils/dateTimeUtils

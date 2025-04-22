@@ -10,7 +10,14 @@ import logger from '../utils/logger'; // Import the logger
 
 // const prisma = new PrismaClient(); // Removed local instance creation
 
-export async function handleDutyOn(interaction: ButtonInteraction) {
+/**
+ * Handles the 'Duty On' button interaction.
+ * Checks if the user is already on duty or lacks permissions.
+ * Creates a new duty session, adds the 'On Duty' role (if configured),
+ * and sends a confirmation message.
+ * @param {ButtonInteraction} interaction - The button interaction object.
+ */
+export async function handleDutyOn(interaction: ButtonInteraction): Promise<void> {
   const userId = interaction.user.id;
   const guildId = interaction.guildId || '';
   
@@ -24,12 +31,13 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
   });
 
   if (activeSession) {
+    // --- Improved Error Embed (Already On Duty) ---
     const errorEmbed = new EmbedBuilder()
-      .setColor(0xF94A4A)
-      .setTitle('❌ Már szolgálatban vagy!')
-      .setDescription('Nem kezdhetsz új szolgálatot, amíg a jelenlegi aktív.')
-      .setFooter({ text: 'Használd a "Szolgálat befejezése" gombot a jelenlegi szolgálat lezárásához.' })
-       .setTimestamp();
+      .setColor(0xED4245) // Standard Red
+      .setTitle('⚠️ Már szolgálatban vagy')
+      .setDescription('Egyszerre csak egy aktív szolgálatod lehet.')
+      .setFooter({ text: 'Fejezd be a jelenlegit a "Szolgálat befejezése" gombbal.' })
+      .setTimestamp();
 
     await interaction.reply({
       embeds: [errorEmbed],
@@ -48,12 +56,25 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
   // Check if user has permission to go on duty
   if (dutyRoleId) {
     const member = interaction.member as GuildMember;
+    // Ensure member exists before checking roles/permissions
+    if (!member) {
+        logger.error(`Could not get GuildMember object for user ${userId} in handleDutyOn`, { guildId });
+        // Send a generic error if member object is missing
+        const genericErrorEmbed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setTitle('❌ Hiba történt')
+            .setDescription('Nem sikerült ellenőrizni a jogosultságodat. Próbáld újra később.')
+            .setTimestamp();
+        await interaction.reply({ embeds: [genericErrorEmbed], ephemeral: true });
+        return;
+    }
+    
     if (!member.roles.cache.has(dutyRoleId) && !member.permissions.has('Administrator')) {
+      // --- Improved Error Embed (No Permission) ---
       const noPermissionEmbed = new EmbedBuilder()
-        .setColor(0xF94A4A)
-        .setTitle('❌ Jogosultság megtagadva')
-        .setDescription('Nincs megfelelő jogosultságod a szolgálatba lépéshez.')
-        .setFooter({ text: 'Kérj segítséget egy adminisztrátortól.' })
+        .setColor(0xED4245) // Standard Red
+        .setTitle('🚫 Hozzáférés megtagadva')
+        .setDescription('Nincs megfelelő jogosultságod (szolgálati szerep vagy adminisztrátor) a szolgálatba lépéshez.')
         .setTimestamp();
 
       await interaction.reply({
@@ -124,17 +145,45 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
   const startTime = newSession.startTime;
   const formattedStartTime = formatDateTime(startTime);
 
+  // --- Improved Success Embed (Main/Notification) ---
   const embed = new EmbedBuilder()
-    .setColor(0x4CAF50)
-    .setTitle('🔰 Szolgálat megkezdve')
-    .setDescription(
-      `### <@${userId}> szolgálatba lépett\n` +
-      `📅 Időpont: ${formattedStartTime}\n` +
-      `🆔 Azonosító: ${newSession.id}${roleStatus}`
+    .setColor(0x57F287) // Standard Green
+    .setTitle('🟢 Szolgálat megkezdve')
+    .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 64 }) || undefined })
+    .addFields(
+        { name: 'Felhasználó', value: `<@${userId}>`, inline: true },
+        { name: 'Időpont', value: formattedStartTime, inline: true },
+        { name: 'Azonosító', value: `\`${newSession.id}\``, inline: true }
     )
-    .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 128 }))
-    .setFooter({ text: 'A szolgálati időd mérése megkezdődött.' })
+    .setFooter({ text: 'A szolgálati idő mérése elindult.' })
     .setTimestamp();
+
+  // Add role status as a separate field if it exists
+  if (roleStatus.trim() !== '') {
+      // Extract the core message from roleStatus (remove potential leading newline and icon)
+      const roleStatusMessage = roleStatus.replace(/^\s*(✅|⚠️)\s*/, '');
+      const roleFieldName = roleStatus.includes('✅') ? 'Szerep hozzáadva' : 'Szerep hiba';
+      embed.addFields({ name: roleFieldName, value: roleStatusMessage });
+  }
+
+  // --- Send Dedicated Log Message ---
+  const logChannelId = settings?.dutyLogChannelId;
+  if (logChannelId && logChannelId.trim() !== '') {
+    try {
+      const logChannel = await interaction.guild?.channels.fetch(logChannelId);
+      if (logChannel?.isTextBased()) {
+        // Use a simpler log message format
+        await logChannel.send(`🟢 <@${userId}> started duty. Session ID: \`${newSession.id}\``);
+        logger.info(`Sent duty start log to channel ${logChannelId} for user ${userId}`, { guildId });
+      } else {
+        logger.warn(`Duty log channel ${logChannelId} not found or not text-based`, { guildId });
+        // Optionally notify the admin who ran the command if the log channel is invalid? Maybe too noisy.
+      }
+    } catch (error) {
+      logger.error(`Error sending duty start log to channel ${logChannelId}:`, { error, guildId });
+    }
+  }
+  // --- End Dedicated Log Message ---
 
   // Check if a notification channel is configured
   const notificationChannelId = settings?.dutyNotificationsChannelId;
@@ -143,21 +192,20 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
     try {
       const channel = await interaction.guild?.channels.fetch(notificationChannelId);
       if (channel?.isTextBased()) {
-        await channel.send({ embeds: [embed] });
-        
-        // Send a simple confirmation to the user
-        const userEmbed = new EmbedBuilder()
-          .setColor(0x4CAF50)
-          .setTitle('🔰 Szolgálat megkezdve')
-          .setDescription('A szolgálati időd mérése megkezdődött.')
-          .setTimestamp();
-          
+        await channel.send({ embeds: [embed] }); // Send the detailed embed to the channel
+
+        // --- Simplified Ephemeral Confirmation ---
+        const userConfirmationEmbed = new EmbedBuilder()
+          .setColor(0x57F287) // Standard Green
+          .setDescription('✅ Sikeresen szolgálatba léptél.')
+          // No title, timestamp, or footer needed for simple confirmation
+
         await interaction.reply({
-          embeds: [userEmbed],
+          embeds: [userConfirmationEmbed],
           ephemeral: true
         });
       } else {
-        // Fall back to replying directly if channel is not text-based
+        // Fall back to replying directly (with the detailed embed) if channel is not text-based
         logger.error(`Channel with ID ${notificationChannelId} is not a text channel`, { guildId });
         await interaction.reply({ embeds: [embed] });
       }
@@ -171,7 +219,14 @@ export async function handleDutyOn(interaction: ButtonInteraction) {
   }
 }
 
-export async function handleDutyOff(interaction: ButtonInteraction) {
+/**
+ * Handles the 'Duty Off' button interaction.
+ * Checks if the user is currently on duty.
+ * Ends the active duty session(s), removes the 'On Duty' role (if configured),
+ * calculates duration, and sends a confirmation message.
+ * @param {ButtonInteraction} interaction - The button interaction object.
+ */
+export async function handleDutyOff(interaction: ButtonInteraction): Promise<void> {
   const userId = interaction.user.id;
   const guildId = interaction.guildId || '';
 
@@ -185,12 +240,13 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
   });
 
   if (activeSessions.length === 0) {
+    // --- Improved Error Embed (Not On Duty) ---
     const errorEmbed = new EmbedBuilder()
-      .setColor(0xF94A4A)
-      .setTitle('❌ Nem vagy szolgálatban!')
-      .setDescription('Nem fejezhetsz be egy nem létező szolgálatot.')
-      .setFooter({ text: 'Használd a "Szolgálat kezdése" gombot az új szolgálat indításához.' })
-       .setTimestamp();
+      .setColor(0xED4245) // Standard Red
+      .setTitle('⚠️ Nem vagy szolgálatban')
+      .setDescription('Nincs aktív szolgálat, amit befejezhetnél.')
+      .setFooter({ text: 'Kezdj új szolgálatot a "Szolgálat kezdése" gombbal.' })
+      .setTimestamp();
 
     await interaction.reply({
       embeds: [errorEmbed],
@@ -289,20 +345,47 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
     }
   });
 
+  // --- Improved Success Embed (Main/Notification) ---
   const embed = new EmbedBuilder()
-    .setColor(0xFF5722)
-    .setTitle('🛑 Szolgálat befejezve')
-    .setDescription(
-      `### <@${userId}> befejezte a szolgálatot\n` +
-      `📅 Kezdés: ${formattedStartTime}\n` +
-      `🏁 Befejezés: ${formattedEndTime}\n` +
-      `⏱️ Időtartam: ${durationHours}ó ${durationMinutes}p ${durationSeconds}mp\n` +
-      `🆔 Azonosító: ${activeSession.id}\n` +
-      `📊 Összes befejezett szolgálat: ${completedSessions}${roleStatus}`
+    .setColor(0xE67E22) // Orange for ending duty
+    .setTitle('🔴 Szolgálat befejezve')
+    .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 64 }) || undefined })
+    .addFields(
+        { name: 'Felhasználó', value: `<@${userId}>`, inline: true },
+        { name: 'Időtartam', value: `${durationHours}ó ${durationMinutes}p ${durationSeconds}mp`, inline: true },
+        { name: 'Összes szolgálat', value: `${completedSessions} db`, inline: true },
+        { name: 'Kezdés', value: formattedStartTime, inline: true },
+        { name: 'Befejezés', value: formattedEndTime, inline: true },
+        { name: 'Azonosító', value: `\`${activeSession.id}\``, inline: true }
     )
-    .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 128 }))
-    .setFooter({ text: 'A szolgálati időd rögzítésre került.' })
+    .setFooter({ text: 'A szolgálati idő rögzítve.' })
     .setTimestamp();
+
+  // Add role status as a separate field if it exists
+  if (roleStatus.trim() !== '') {
+      // Extract the core message from roleStatus
+      const roleStatusMessage = roleStatus.replace(/^\s*(✅|⚠️)\s*/, '');
+      const roleFieldName = roleStatus.includes('✅') ? 'Szerep eltávolítva' : 'Szerep hiba';
+      embed.addFields({ name: roleFieldName, value: roleStatusMessage });
+  }
+
+  // --- Send Dedicated Log Message ---
+  const logChannelId = settings?.dutyLogChannelId;
+  if (logChannelId && logChannelId.trim() !== '') {
+    try {
+      const logChannel = await interaction.guild?.channels.fetch(logChannelId);
+      if (logChannel?.isTextBased()) {
+        // Use a simpler log message format with backticks for ID
+        await logChannel.send(`🔴 <@${userId}> ended duty. Duration: ${durationHours}h ${durationMinutes}m ${durationSeconds}s. Session ID: \`${activeSession.id}\``);
+        logger.info(`Sent duty end log to channel ${logChannelId} for user ${userId}`, { guildId });
+      } else {
+        logger.warn(`Duty log channel ${logChannelId} not found or not text-based`, { guildId });
+      }
+    } catch (error) {
+      logger.error(`Error sending duty end log to channel ${logChannelId}:`, { error, guildId });
+    }
+  }
+  // --- End Dedicated Log Message ---
 
   // Check if a notification channel is configured
   const notificationChannelId = settings?.dutyNotificationsChannelId;
@@ -311,21 +394,20 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
     try {
       const channel = await interaction.guild?.channels.fetch(notificationChannelId);
       if (channel?.isTextBased()) {
-        await channel.send({ embeds: [embed] });
-        
-        // Send a simple confirmation to the user
-        const userEmbed = new EmbedBuilder()
-          .setColor(0xFF5722)
-          .setTitle('🛑 Szolgálat befejezve')
-          .setDescription('A szolgálati időd rögzítésre került.')
-          .setTimestamp();
-          
+        await channel.send({ embeds: [embed] }); // Send detailed embed to channel
+
+        // --- Simplified Ephemeral Confirmation ---
+        const userConfirmationEmbed = new EmbedBuilder()
+          .setColor(0xE67E22) // Orange
+          .setDescription('✅ Sikeresen befejezted a szolgálatot.')
+          // No title, timestamp, or footer needed
+
         await interaction.reply({
-          embeds: [userEmbed],
+          embeds: [userConfirmationEmbed],
           ephemeral: true
         });
       } else {
-        // Fall back to replying directly if channel is not text-based
+        // Fall back to replying directly (with the detailed embed) if channel is not text-based
         logger.error(`Channel with ID ${notificationChannelId} is not a text channel`, { guildId });
         await interaction.reply({ embeds: [embed] });
       }
@@ -339,7 +421,13 @@ export async function handleDutyOff(interaction: ButtonInteraction) {
   }
 }
 
-export async function handleShowTime(interaction: ButtonInteraction) {
+/**
+ * Handles the 'Show Time' button interaction.
+ * Fetches the user's active session (if any) and recent completed sessions.
+ * Calculates total time, average time, and displays a summary embed.
+ * @param {ButtonInteraction} interaction - The button interaction object.
+ */
+export async function handleShowTime(interaction: ButtonInteraction): Promise<void> {
   const userId = interaction.user.id;
   const guildId = interaction.guildId || '';
 
@@ -379,22 +467,8 @@ export async function handleShowTime(interaction: ButtonInteraction) {
   const totalHours = Math.floor(totalDurationMs / (1000 * 60 * 60));
   const totalMinutes = Math.floor((totalDurationMs % (1000 * 60 * 60)) / (1000 * 60));
 
-  let activeSessionInfo = '';
-  if (activeSession) {
-    const startTime = activeSession.startTime;
-    const currentTime = new Date();
-    const activeDurationMs = currentTime.getTime() - startTime.getTime();
-    const activeDurationHours = Math.floor(activeDurationMs / (1000 * 60 * 60));
-    const activeDurationMinutes = Math.floor((activeDurationMs % (1000 * 60 * 60)) / (1000 * 60));
-    const activeDurationSeconds = Math.floor((activeDurationMs % (1000 * 60)) / 1000);
-    const formattedStartTime = formatDateTime(startTime);
-    
-    activeSessionInfo = 
-      `## 🔴 Aktív szolgálat\n` +
-      `📅 Kezdés: ${formattedStartTime}\n` +
-      `⏱️ Jelenlegi időtartam: ${activeDurationHours}ó ${activeDurationMinutes}p ${activeDurationSeconds}mp\n` +
-      `🆔 Azonosító: ${activeSession.id}\n\n`;
-  }
+  // Note: activeSessionInfo string was removed as it was unused.
+  // Calculations needed for the embed are still done inside the if(activeSession) block below.
 
   // Build information about recent sessions
   let recentSessionsInfo = '';
@@ -449,21 +523,69 @@ export async function handleShowTime(interaction: ButtonInteraction) {
     const avgHours = Math.floor(avgDurationMs / (1000 * 60 * 60));
     const avgMinutes = Math.floor((avgDurationMs % (1000 * 60 * 60)) / (1000 * 60));
     
-    avgInfo = `\n📊 Átlagos szolgálati idő: ${avgHours}ó ${avgMinutes}p`;
+    avgInfo = `${avgHours} óra ${avgMinutes} perc`;
+  } else {
+    avgInfo = 'Nincs elég adat';
   }
 
+  // --- Improved Show Time Embed ---
   const embed = new EmbedBuilder()
-    .setColor(0x3F51B5)
-    .setTitle('📊 Szolgálati idő statisztika')
-    .setDescription(
-      `## 📝 Összesítés - <@${userId}>\n` +
-      `⏱️ Összes szolgálati idő: ${totalHours}ó ${totalMinutes}p\n` +
-      `🔢 Befejezett szolgálatok: ${completedSessions.length}${avgInfo}${rankInfo}\n\n` +
-      `${activeSessionInfo}${recentSessionsInfo}`
-    )
-    .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 128 }))
-    .setFooter({ text: 'További részletekért használd a /dutyuser parancsot.' })
-    .setTimestamp();
+    .setColor(0x5865F2) // Standard Blurple
+    .setTitle(`📊 Szolgálati idő - ${interaction.user.username}`)
+    .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) || null)
+    .setTimestamp()
+    .addFields(
+        // Summary Fields
+        { name: '⏱️ Összes idő', value: `${totalHours} óra ${totalMinutes} perc`, inline: true },
+        { name: '✅ Befejezett szolgálatok', value: `${completedSessions.length} db`, inline: true },
+        { name: '📊 Átlagos idő', value: avgInfo, inline: true }
+        // Rank info could be added here if needed, extracted from rankInfo string
+    );
+
+    // Add Active Session field if applicable
+    if (activeSession) {
+        // Calculate details needed for the embed here
+        const startTime = activeSession.startTime;
+        const currentTime = new Date();
+        const activeDurationMs = currentTime.getTime() - startTime.getTime(); // Keep this intermediate for calculation
+        const activeDurationHours = Math.floor(activeDurationMs / (1000 * 60 * 60));
+        const activeDurationMinutes = Math.floor((activeDurationMs % (1000 * 60 * 60)) / (1000 * 60));
+        // activeDurationSeconds is not used in the embed, so removed calculation
+        const formattedStartTime = formatDateTime(startTime);
+        embed.addFields({
+            name: '🟢 Aktív szolgálat',
+            // Use the calculated values directly
+            value: `Kezdés: ${formattedStartTime}\nIdőtartam: ${activeDurationHours}ó ${activeDurationMinutes}p\nAzonosító: \`${activeSession.id}\``,
+            inline: false
+        });
+    } else {
+         embed.addFields({ name: '⚪ Jelenlegi állapot', value: 'Nem szolgálatban', inline: false });
+    }
+
+    // Add Recent Sessions field
+    if (completedSessions.length > 0) {
+        let recentSessionsValue = '';
+        completedSessions.slice(0, 3).forEach((session) => { // Show top 3 recent
+            if (session.endTime) {
+                const durationMs = session.endTime.getTime() - session.startTime.getTime();
+                const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+                const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                recentSessionsValue += `*${formatDateTime(session.startTime)}* (${durationHours}ó ${durationMinutes}p) - ID: \`${session.id}\`\n`;
+            }
+        });
+        embed.addFields({ name: '📚 Legutóbbi 3 szolgálat', value: recentSessionsValue.trim() || 'Nincs adat', inline: false });
+    } else {
+         embed.addFields({ name: '📚 Legutóbbi szolgálatok', value: 'Nincsenek korábbi szolgálati időszakok.', inline: false });
+    }
+
+    // Add Rank Info if available
+    if (rankInfo.trim() !== '' && !rankInfo.includes('Nincs beállítva')) {
+         const rankValue = rankInfo.replace(/^\s*👑\s*Szolgálati rang:\s*/, ''); // Clean up the string
+         embed.addFields({ name: '👑 Szolgálati rang', value: rankValue, inline: false });
+    }
+
+    embed.setFooter({ text: 'Részletesebb statisztikák: /dutystats' });
+
 
   await interaction.reply({
     embeds: [embed],

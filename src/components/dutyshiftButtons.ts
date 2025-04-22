@@ -13,6 +13,13 @@ import { formatDateTime } from '../utils/dateTimeUtils'; // Import shared date f
 // button clicks (ButtonInteraction) and potentially slash commands (ChatInputCommandInteraction)
 // if called directly, though the primary use case here is buttons.
 // Consider refining if only ButtonInteraction is ever passed.
+/**
+ * Handles the 'Sign Up' button interaction for a duty shift.
+ * Checks shift validity, user status, and capacity before creating a signup record.
+ * Replies ephemerally with success or error.
+ * @param {ButtonInteraction | ChatInputCommandInteraction} interaction - The interaction object (button or command).
+ * @param {number} shiftId - The ID of the shift to sign up for.
+ */
 export async function handleSignup(interaction: ButtonInteraction | ChatInputCommandInteraction, shiftId: number) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId!;
@@ -95,6 +102,13 @@ export async function handleSignup(interaction: ButtonInteraction | ChatInputCom
   });
 }
 
+/**
+ * Handles the 'Cancel Signup' button interaction for a duty shift.
+ * Checks shift validity and user signup status before deleting the signup record.
+ * Replies ephemerally with success or error.
+ * @param {ButtonInteraction | ChatInputCommandInteraction} interaction - The interaction object (button or command).
+ * @param {number} shiftId - The ID of the shift to cancel signup for.
+ */
 export async function handleCancel(interaction: ButtonInteraction | ChatInputCommandInteraction, shiftId: number) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId!;

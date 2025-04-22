@@ -57,3 +57,47 @@ model Signup {
 
   @@unique([userId, shiftId])
 }
+
+model AutoReportSchedule {
+  id         Int      @id @default(autoincrement())
+  guildId    String
+  channelId  String
+  reportType String   // e.g. 'leaderboard', 'compliance', 'summary'
+  frequency  String   // e.g. 'daily', 'weekly', 'monthly', 'custom'
+  timeOfDay  String   // e.g. '09:00' (24h format)
+  nextRun    DateTime
+  lastRun    DateTime?
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([channelId])
+}
+
+model DutyProfile {
+  id         Int      @id @default(autoincrement())
+  userId     String   @unique
+  guildId    String
+  fullName   String
+  codename   String?
+  badgeNumber String?
+  phoneNumber String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, guildId])
+}
+
+model UserUnavailability {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  guildId   String
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, guildId])
+}

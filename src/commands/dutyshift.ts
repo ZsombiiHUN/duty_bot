@@ -12,13 +12,18 @@ import {
 // import { PrismaClient } from '@prisma/client'; // Removed local instance import
 import prisma from '../db'; // Import shared Prisma client
 import { handleSignup as handleSignupButton, handleCancel as handleCancelButton } from '../components/dutyshiftButtons'; // Import handlers
-import { formatDateTime } from '../utils/dateTimeUtils'; // Import shared date formatter
+import { formatDateTime, parseDateTime } from '../utils/dateTimeUtils'; // Import shared date formatters and parsers
 
 // const prisma = new PrismaClient(); // Removed local instance creation
 
+/**
+ * Command definition for the /beosztas command.
+ * Handles creation, listing, viewing, signing up, canceling, and deleting duty shifts.
+ * Permissions vary by subcommand (Admin for create/delete, Duty Role/Admin for others).
+ */
 export const data = new SlashCommandBuilder()
-  .setName('dutyshift')
-  .setDescription('Szolgálati beosztások kezelése')
+  .setName('beosztas')
+  .setDescription('Szolgálati beosztások kezelése, jelentkezés, lemondás.')
   .setDMPermission(false)
   .addSubcommand(subcommand => 
     subcommand
@@ -107,6 +112,12 @@ export const data = new SlashCommandBuilder()
       )
   );
 
+/**
+ * Executes the /beosztas command based on the chosen subcommand.
+ * Handles shift creation, listing, viewing, signup, cancellation, and deletion.
+ * Checks permissions based on subcommand and GuildSettings.
+ * @param {ChatInputCommandInteraction} interaction - The command interaction object.
+ */
 export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId!;
@@ -204,7 +215,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `Időpont: ${formatDateTime(startTime)} - ${formatDateTime(endTime)}\n` +
         `Időtartam: ${durationHours}ó ${durationMinutes}p\n` +
         `Létszám: 0/${maxUsers}\n\n` +
-        `Jelentkezéshez használd a gombot vagy a \`/dutyshift signup\` parancsot az azonosítóval: **${shift.id}**`
+        `Jelentkezéshez használd a gombot vagy a \`/beosztas signup\` parancsot az azonosítóval: **${shift.id}**`
       )
       .setTimestamp();
     
@@ -508,29 +519,7 @@ async function handleCancel(...) { ... }
 // Make the functions available for import
 // export { handleSignup, handleCancel }; // Removed export
 
-// Helper functions (kept locally as they are used by execute)
-// Removed incorrect async db call from parseDateTime
-function parseDateTime(dateTimeStr: string): Date {
-  // Format: YYYY-MM-DD HH:MM
-  const match = dateTimeStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{1,2})$/);
-
-  if (!match) {
-    throw new Error('Invalid date format');
-  }
-  
-  const year = parseInt(match[1]);
-  const month = parseInt(match[2]) - 1; // 0-based months
-  const day = parseInt(match[3]);
-  const hour = parseInt(match[4]);
-  const minute = parseInt(match[5]);
-  
-  const date = new Date(year, month, day, hour, minute);
-  
-  if (isNaN(date.getTime())) {
-    throw new Error('Invalid date');
-  }
-  
-  return date;
-}
+// Removed local helper function parseDateTime
+// It is now imported from ../utils/dateTimeUtils
 
 // Removed local formatDateTime and padZero functions, now imported from utils

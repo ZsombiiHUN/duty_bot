@@ -5,16 +5,23 @@ import {
   AttachmentBuilder,
   PermissionFlagsBits
 } from 'discord.js';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client'; // Removed local instance import
+import prisma from '../db'; // Import shared Prisma client
+import { formatDateTime, formatDate } from '../utils/dateTimeUtils'; // Import shared utils
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient(); // Removed local instance creation
 
+/**
+ * Command definition for the /szemelyiszolgalat command.
+ * Provides personal duty time information, history, export, rank, and requirements check.
+ * Requires the configured duty role or Administrator permissions.
+ */
 export const data = new SlashCommandBuilder()
-  .setName('dutyuser')
-  .setDescription('Személyes szolgálati idő információk')
+  .setName('szemelyiszolgalat')
+  .setDescription('Személyes szolgálati adatok')
   .setDMPermission(false)
   .addSubcommand(subcommand => 
     subcommand
@@ -69,6 +76,12 @@ export const data = new SlashCommandBuilder()
       .setDescription('Elvárt szolgálati idő követelmények ellenőrzése')
   );
 
+/**
+ * Executes the /szemelyiszolgalat command based on the chosen subcommand.
+ * Handles displaying history, exporting data, showing rank, and checking requirements.
+ * Requires the configured duty role or Administrator permissions.
+ * @param {ChatInputCommandInteraction} interaction - The command interaction object.
+ */
 export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId!;
@@ -485,7 +498,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-// Helper function to create a progress bar
+/**
+ * Helper function to create a progress bar string.
+ * @param {number} percentage - The percentage value (0-100).
+ * @returns {string} A string representing the progress bar (e.g., '█████░░░░░').
+ * @private
+ */
 function createProgressBar(percentage: number): string {
   const filledCount = Math.floor(percentage / 10);
   const emptyCount = 10 - filledCount;
@@ -493,15 +511,5 @@ function createProgressBar(percentage: number): string {
   return '█'.repeat(filledCount) + '░'.repeat(emptyCount);
 }
 
-// Helper functions
-function formatDateTime(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
-}
-
-function formatDate(date: Date): string {
-  return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}`;
-}
-
-function padZero(num: number): string {
-  return num < 10 ? `0${num}` : num.toString();
-} 
+// Removed local helper functions (formatDateTime, formatDate, padZero)
+// They are now imported from ../utils/dateTimeUtils

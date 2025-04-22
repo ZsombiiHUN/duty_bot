@@ -4,17 +4,23 @@ import {
   EmbedBuilder,
   PermissionFlagsBits
 } from 'discord.js';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client'; // Removed local instance import
+import prisma from '../db'; // Import shared Prisma client
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient(); // Removed local instance creation
 const DUTY_ROLE_ID = process.env.DUTY_ROLE_ID!;
 
 // In-memory cache is now deprecated since we're using database flags
-// const alarmSentForUsers = new Set<string>();
+// const alarmSentForUsers = new Set<string>(); // Deprecated in-memory cache
 
+/**
+ * Command definition for the /szolgfigyelo command.
+ * Allows administrators to configure duty time alarms and user reminders.
+ * Requires Administrator permissions or the configured duty role.
+ */
 export const data = new SlashCommandBuilder()
-  .setName('dutyalarm')
-  .setDescription('Szolgálati idő figyelmeztetések beállítása')
+  .setName('szolgfigyelo')
+  .setDescription('Szolgálati figyelmeztetések és emlékeztetők beállítása adminoknak.')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .setDMPermission(false)
   .addSubcommand(subcommand => 
@@ -66,6 +72,12 @@ export const data = new SlashCommandBuilder()
       )
   );
 
+/**
+ * Executes the /szolgfigyelo command based on the chosen subcommand.
+ * Handles configuring, disabling, checking status of, and setting reminders for duty alarms.
+ * Requires Administrator permissions or the configured duty role.
+ * @param {ChatInputCommandInteraction} interaction - The command interaction object.
+ */
 export async function execute(interaction: ChatInputCommandInteraction) {
   // Check if user has the required role
   const member = interaction.guild?.members.cache.get(interaction.user.id);
@@ -214,10 +226,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-// This function should be called periodically to check for long duty sessions
-export async function checkLongDutySessions(client: any) {
+/**
+ * Periodically checks for users exceeding configured duty time thresholds.
+ * Sends alarms to a configured channel and reminders via DM to users.
+ * Updates database flags (alarmSent, reminderSent) to prevent duplicates.
+ * Intended to be called via setInterval in the main bot process.
+ * @param {any} client - The Discord Client instance (passed as 'any' for flexibility, consider using `Client<true>`).
+ */
+export async function checkLongDutySessions(client: any): Promise<void> {
   const now = new Date();
-  
+
   try {
     // Get all guilds with alarms enabled
     const guildsWithAlarms = await prisma.guildSettings.findMany({
@@ -338,4 +356,4 @@ export async function checkLongDutySessions(client: any) {
   } catch (error) {
     console.error('Error checking long duty sessions:', error);
   }
-} 
+}

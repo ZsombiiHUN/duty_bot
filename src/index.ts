@@ -15,6 +15,8 @@ import path from 'path';
 import { handleDutyOn, handleDutyOff, handleShowTime } from './components/dutyButtons';
 import { handleSignup as handleDutyshiftSignup, handleCancel as handleDutyshiftCancel } from './components/dutyshiftButtons'; // Import the dutyshift handlers
 import { checkLongDutySessions } from './commands/dutyalarm';
+import { checkDutyRequirements } from './tasks/requirementChecker'; // Import the new requirement checker
+import { startAutoReportScheduler } from './tasks/autoReportScheduler';
 import * as Constants from './constants';
 import logger from './utils/logger'; // Import the logger
 
@@ -54,6 +56,9 @@ const client = new Client({
   ],
 });
 
+// Start automated report scheduler
+startAutoReportScheduler(client);
+
 // Create a collection for commands using the defined interface
 client.commands = new Collection<string, Command>();
 
@@ -71,23 +76,15 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
   try {
-    // Assuming the required file exports an object conforming to Command interface
-    const command = require(filePath) as Command; 
-    
-    // Set the command (Removed the explicit check as per feedback)
-    // It's assumed based on the 'as Command' assertion and project structure 
-    // that valid commands will have 'data' and 'execute'.
-    // Runtime errors might occur here if a command file is malformed.
-    client.commands.set(command.data.name, command); 
-
+    const imported = require(filePath);
+    const command = imported.default ?? imported;
+    if (!command.data || !command.execute) {
+      logger.warn(`[WARNING] Command at ${filePath} missing 'data' or 'execute' property.`);
+      continue;
+    }
+    client.commands.set(command.data.name, command);
   } catch (error) {
-     logger.error(`Failed to load command at ${filePath}:`, { error });
-     // Optionally add a warning if data/execute are missing after loading, 
-     // but avoiding the check that TS flags.
-     // const loadedCommand = require(filePath);
-     // if (!loadedCommand.data || !loadedCommand.execute) {
-     //    console.warn(`[WARNING] Loaded command at ${filePath} might be missing 'data' or 'execute'.`);
-     // }
+    logger.error(`Failed to load command at ${filePath}:`, { error });
   }
 }
 
@@ -141,7 +138,29 @@ client.once(Events.ClientReady, () => {
   // Set up interval for checking long duty sessions (every 5 minutes)
   setInterval(() => {
     checkLongDutySessions(client);
-  }, 5 * 60 * 1000);
+  }, 5 * 60 * 1000); // 5 minutes
+
+  // Set up interval for checking duty requirements (e.g., once per day)
+  // Calculate milliseconds until the next check time (e.g., 8 AM)
+  const now = new Date();
+  const nextCheck = new Date(now);
+  nextCheck.setHours(8, 0, 0, 0); // Set to 8:00:00 AM
+  if (now >= nextCheck) {
+      nextCheck.setDate(nextCheck.getDate() + 1); // If past 8 AM, schedule for tomorrow
+  }
+  const initialDelay = nextCheck.getTime() - now.getTime();
+  const dailyInterval = 24 * 60 * 60 * 1000; // 24 hours
+
+  logger.info(`[Scheduler] Initial duty requirement check scheduled in ${initialDelay / 1000 / 60} minutes.`);
+
+  // Run once after the initial delay, then repeat daily
+  setTimeout(() => {
+      checkDutyRequirements(client); // Run the first check
+      setInterval(() => {
+          checkDutyRequirements(client); // Run subsequent daily checks
+      }, dailyInterval);
+  }, initialDelay);
+
 });
 
 client.on(Events.InteractionCreate, async (interaction: Interaction) => { // Add Interaction type

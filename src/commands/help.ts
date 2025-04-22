@@ -9,7 +9,12 @@ const ADMIN_PERM = 'Adminisztrátor';
 const DUTY_ROLE_OR_ADMIN_PERM = 'Szolgálati Szerep vagy Adminisztrátor';
 const ANYONE_PERM = 'Bárki';
 
-// Helper function to format subcommands
+/**
+ * Helper function to format a list of subcommands for the help embed.
+ * @param {Array<{ name: string, description: string }>} subcommands - Array of subcommand objects.
+ * @returns {string} A formatted string listing subcommands, or an empty string if none.
+ * @private
+ */
 function formatSubcommands(subcommands: { name: string, description: string }[]): string {
   if (!subcommands || subcommands.length === 0) {
     return '';
@@ -17,10 +22,19 @@ function formatSubcommands(subcommands: { name: string, description: string }[])
   return '\n**Alparancsok:**\n' + subcommands.map(sc => `  - \`${sc.name}\`: ${sc.description}`).join('\n');
 }
 
+/**
+ * Command definition for the /segitseg command.
+ * Displays help information about available commands.
+ */
 export const data = new SlashCommandBuilder()
-  .setName('help')
-  .setDescription('Megjeleníti az összes elérhető parancsot és a szükséges jogosultságokat.');
+  .setName('segitseg')
+  .setDescription('Segítség a szolgálati rendszerhez');
 
+/**
+ * Executes the /segitseg command.
+ * Sends an ephemeral embed listing all commands, their subcommands, and required permissions.
+ * @param {ChatInputCommandInteraction} interaction - The command interaction object.
+ */
 export async function execute(interaction: ChatInputCommandInteraction) {
   const helpEmbed = new EmbedBuilder()
     .setColor(0x3498DB)
@@ -44,9 +58,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
                  { name: 'check', description: 'Jelenlegi szolgálati és szerep beállítások ellenőrzése' },
                  { name: 'requirements', description: 'Szolgálati idő követelmények beállítása' },
                  { name: 'find', description: 'Szolgálati időszakok keresése felhasználónként' },
-                 { name: 'notifications_channel', description: 'Szolgálati értesítések csatornájának beállítása' }
+                 { name: 'notifications_channel', description: 'Szolgálati értesítések csatornájának beállítása' },
+                 { name: 'log_channel', description: 'Szolgálati naplózási csatorna beállítása/törlése' }
                ]) +
-               `\n*Jogosultság:* ${ADMIN_PERM}`, 
+               `\n*Jogosultság:* ${ADMIN_PERM}`,
         inline: false 
       },
       { 
@@ -79,11 +94,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         name: '/dutystats', 
         value: `Szolgálati idő statisztikák megtekintése.` +
                formatSubcommands([
-                 { name: 'summary', description: 'Összesített szolgálati statisztikák' },
+                { name: 'summary', description: 'Összesített szolgálati statisztikák' },
                  { name: 'leaderboard', description: 'Toplista a legtöbb szolgálati idővel' },
-                 { name: 'metrics', description: 'Részletes szolgálati metrikák' }
+                 { name: 'metrics', description: 'Részletes szolgálati metrikák' },
+                 { name: 'compliance', description: 'Szolgálati követelményeknek való megfelelés ellenőrzése' }
                ]) +
-               `\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`, 
+               `\n*Jogosultság:* ${DUTY_ROLE_OR_ADMIN_PERM}`,
         inline: false 
       },
       { 
@@ -99,7 +115,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         inline: false 
       },
       { 
-        name: '/help', 
+        name: '/segitseg', 
         value: `Ez a súgó üzenet.\n*Jogosultság:* ${ANYONE_PERM}`, 
         inline: false 
       }
