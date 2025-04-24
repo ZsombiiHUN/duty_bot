@@ -1,6 +1,13 @@
 # Duty Bot Discord Bot
 
 [![License](https://img.shields.io/github/license/ZsombiiHUN/duty_bot)](LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/issues)
+[![GitHub stars](https://img.shields.io/github/stars/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/network)
+[![GitHub last commit](https://img.shields.io/github/last-commit/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/commits/main)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/pulls)
+[![GitHub contributors](https://img.shields.io/github/contributors/ZsombiiHUN/duty_bot)](https://github.com/ZsombiiHUN/duty_bot/graphs/contributors)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/ZsombiiHUN/duty_bot/graphs/commit-activity)
 
 > **A professional, feature-rich, and fully customizable Discord bot for managing duty rosters, compliance, statistics, and more.**
 
