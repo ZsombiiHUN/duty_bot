@@ -1,6 +1,6 @@
 # Duty Bort Discord Bot
 
-[![License](https://img.shields.io/github/license/ZsombiiHUN/duty-bot)](LICENSE)
+[![License](https://img.shields.io/github/license/ZsombiiHUN/duty_bot)](LICENSE)
 
 > **A professional, feature-rich, and fully customizable Discord bot for managing duty rosters, compliance, statistics, and more.**
 
@@ -36,8 +36,8 @@
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/ZsombiiHUN/duty-bot.git
-cd duty-bot
+git clone https://github.com/ZsombiiHUN/duty_bot.git
+cd duty_bot
 npm install
 ```
 
@@ -100,7 +100,7 @@ Use `/setup` as an admin to configure roles, channels, requirements, and notific
 
 ### Duty Bot – Magyar Leírás
 
-[![License](https://img.shields.io/github/license/ZsombiiHUN/duty-bot)](LICENSE)
+[![License](https://img.shields.io/github/license/ZsombiiHUN/duty_bot)](LICENSE)
 
 > **Professzionális, funkciógazdag és teljesen testreszabható Discord bot szolgálati idő, beosztások, megfelelőség, statisztikák és közösségi adminisztráció kezelésére.**
 
@@ -126,8 +126,8 @@ Use `/setup` as an admin to configure roles, channels, requirements, and notific
 
 #### 1. Klónozás & Telepítés
 ```bash
-git clone https://github.com/ZsombiiHUN/duty-bot.git
-cd duty-bot
+git clone https://github.com/ZsombiiHUN/duty_bot.git
+cd duty_bot
 npm install
 ```
 
@@ -188,7 +188,7 @@ Szívesen fogadjuk a pull requesteket, hibajelentéseket, ötleteket és fordít
 MIT License. Copyright (c) ZsombiiHUN
 
 ### Támogatás / Kapcsolat
-- [GitHub Issues](https://github.com/ZsombiiHUN/duty-bot/issues)
+- [GitHub Issues](https://github.com/ZsombiiHUN/duty_bot/issues)
 ---
 
 ## Contributing
@@ -198,5 +198,5 @@ Pull request-ek, hibajelentések, ötletek és fordítások szívesen fogadva! L
 MIT License. Copyright (c) ZsombiiHUN
 
 ## Support / Contact
-- [GitHub Issues](https://github.com/ZsombiiHUN/duty-bot/issues)
+- [GitHub Issues](https://github.com/ZsombiiHUN/duty_bot/issues)
 ---
