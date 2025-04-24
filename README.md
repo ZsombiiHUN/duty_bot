@@ -1,4 +1,4 @@
-# Duty Bort Discord Bot
+# Duty Bot Discord Bot
 
 [![License](https://img.shields.io/github/license/ZsombiiHUN/duty_bot)](LICENSE)
 
@@ -18,12 +18,6 @@
 - **Registration Roster**: Register, search, and manage user profiles for duty tracking.
 - **Multi-language Support**: Hungarian and English documentation, commands, and responses.
 - **Secure & Scalable**: Built with Discord.js, Prisma, and PostgreSQL for reliability and performance.
-
----
-
-## Screenshots
-
-> *(Add your own screenshots/gifs here for maximum impact!)*
 
 ---
 
