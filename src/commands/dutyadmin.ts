@@ -1015,5 +1015,3 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-// Removed local helper functions (parseDateTime, formatDateTime, padZero, parseDate, formatDate)
-// They are now imported from ../utils/dateTimeUtils
